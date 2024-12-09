@@ -1,4 +1,4 @@
-module gitlab.plaso.cn/basic-go/common
+module gitlab.plaso.cn/module-go/common
 
 go 1.22.5
 
