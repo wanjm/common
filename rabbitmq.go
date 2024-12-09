@@ -18,6 +18,7 @@ import (
 // further locks, or safeguards, to keep your application safe from data races
 type RabbitMqClient struct {
 	m               *sync.Mutex
+	exchange        string
 	queueName       string
 	logger          *log.Logger
 	connection      *amqp.Connection
@@ -49,10 +50,13 @@ var (
 
 // New creates a new consumer state instance, and automatically
 // attempts to connect to the server.
-func New(queueName, addr string) *RabbitMqClient {
+// 发送消息时，queueName为routingKey，或者exchange为空，queueName为queueName；
+// 接受消息时，queueName为queueName，exchange为空；
+func New(exchange, queueName, addr string) *RabbitMqClient {
 	client := RabbitMqClient{
 		m:         &sync.Mutex{},
 		logger:    log.New(os.Stdout, "", log.LstdFlags),
+		exchange:  exchange,
 		queueName: queueName,
 		done:      make(chan bool),
 	}
@@ -152,28 +156,11 @@ func (client *RabbitMqClient) init(conn *amqp.Connection) error {
 		fmt.Printf("Failed to open a channel: %v\n", err)
 		return err
 	}
-
 	err = ch.Confirm(false)
-
 	if err != nil {
 		fmt.Printf("Failed to confirm: %v\n", err)
 		return err
 	}
-
-	_, err = ch.QueueDeclarePassive(
-		client.queueName,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-
-	if err != nil {
-		fmt.Printf("Failed to queueDeclare %s: %v\n", client.queueName, err)
-		return err
-	}
-
 	client.changeChannel(ch)
 	client.m.Lock()
 	client.isReady = true
@@ -247,7 +234,7 @@ func (client *RabbitMqClient) UnsafePush(data []byte) error {
 
 	return client.channel.PublishWithContext(
 		ctx,
-		"",
+		client.exchange,
 		client.queueName,
 		false,
 		false,
