@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -17,10 +15,10 @@ import (
 // data races. As you develop and iterate over this example, you may need to add
 // further locks, or safeguards, to keep your application safe from data races
 type RabbitMqClient struct {
-	m               *sync.Mutex
-	exchange        string
-	queueName       string
-	logger          *log.Logger
+	m         *sync.Mutex
+	exchange  string
+	queueName string
+	// logger          *log.Logger
 	connection      *amqp.Connection
 	channel         *amqp.Channel
 	done            chan bool
@@ -54,8 +52,8 @@ var (
 // 接受消息时，queueName为queueName，exchange为空；
 func New(exchange, queueName, addr string) *RabbitMqClient {
 	client := RabbitMqClient{
-		m:         &sync.Mutex{},
-		logger:    log.New(os.Stdout, "", log.LstdFlags),
+		m: &sync.Mutex{},
+		// logger:    log.New(os.Stdout, "", log.LstdFlags),
 		exchange:  exchange,
 		queueName: queueName,
 		done:      make(chan bool),
@@ -78,12 +76,12 @@ func (client *RabbitMqClient) handleReconnect(addr string) {
 		client.isReady = false
 		client.m.Unlock()
 
-		client.logger.Println("Attempting to connect " + addr)
+		Info(context.Background(), "Attempting to connect ", String("addr", addr))
 
 		conn, err := client.connect(addr)
 
 		if err != nil {
-			client.logger.Println("Failed to connect. Retrying...")
+			Info(context.Background(), "Failed to connect to rabbitmq. Retrying...")
 
 			select {
 			case <-client.done:
@@ -108,7 +106,7 @@ func (client *RabbitMqClient) connect(addr string) (*amqp.Connection, error) {
 	}
 
 	client.changeConnection(conn)
-	client.logger.Println("Connected!")
+	Info(context.Background(), "Rabbit Connected!")
 	return conn, nil
 }
 
@@ -123,13 +121,13 @@ func (client *RabbitMqClient) handleReInit(conn *amqp.Connection) bool {
 		err := client.init(conn)
 
 		if err != nil {
-			client.logger.Printf("Failed to initialize channel. Retrying... %v\n", err)
+			Info(context.Background(), "Failed to initialize rabbitmq channel. Retrying.", String("error", err.Error()))
 
 			select {
 			case <-client.done:
 				return true
 			case <-client.notifyConnClose:
-				client.logger.Println("Connection closed. Reconnecting...")
+				Info(context.Background(), "Connection closed. Reconnecting...")
 				return false
 			case <-time.After(reInitDelay):
 			}
@@ -140,10 +138,10 @@ func (client *RabbitMqClient) handleReInit(conn *amqp.Connection) bool {
 		case <-client.done:
 			return true
 		case <-client.notifyConnClose:
-			client.logger.Println("Connection closed. Reconnecting...")
+			Info(context.Background(), "rabbitmq Connection closed. Reconnecting...")
 			return false
 		case <-client.notifyChanClose:
-			client.logger.Println("Channel closed. Re-running init...")
+			Info(context.Background(), "rabbitmq Channel closed. Re-running init...")
 		}
 	}
 }
@@ -165,7 +163,7 @@ func (client *RabbitMqClient) init(conn *amqp.Connection) error {
 	client.m.Lock()
 	client.isReady = true
 	client.m.Unlock()
-	client.logger.Println("Setup!")
+	Info(context.Background(), "rabbitmq Setup!")
 
 	return nil
 }
@@ -201,7 +199,7 @@ func (client *RabbitMqClient) Push(data []byte) error {
 	for {
 		err := client.UnsafePush(data)
 		if err != nil {
-			client.logger.Println("Push failed. Retrying...")
+			Info(context.Background(), "Push failed. Retrying...")
 			select {
 			case <-client.done:
 				return errShutdown
@@ -211,7 +209,7 @@ func (client *RabbitMqClient) Push(data []byte) error {
 		}
 		confirm := <-client.notifyConfirm
 		if confirm.Ack {
-			client.logger.Printf("Push confirmed [%d]!", confirm.DeliveryTag)
+			Info(context.Background(), "Push confirmed", Int("id", int(confirm.DeliveryTag)))
 			return nil
 		}
 	}
@@ -244,38 +242,40 @@ func (client *RabbitMqClient) UnsafePush(data []byte) error {
 		},
 	)
 }
-func (queue *RabbitMqClient) Consume(customTag string, deal func(a amqp.Delivery)) {
+func (queue *RabbitMqClient) Consume(ctx context.Context, customTag string, deal func(ctx context.Context, a amqp.Delivery)) {
 reconnect:
 	for {
 		deliveries, err := queue.consume(customTag)
 		if err != nil {
-			log.Printf("Could not start consuming: %s\n", err)
+			Info(context.Background(), "Could not start consuming", String("error", err.Error()))
 			<-time.After(time.Second * 2)
 			continue
 		}
+		Info(context.Background(), "Start consuming", String("queue", queue.queueName))
 		for {
 			select {
-			// case <-ctx.Done():
-			// 	err := queue.Close()
-			// 	if err != nil {
-			// 		log.Printf("Close failed: %s\n", err)
-			// 	}
-			// 	return
+			case <-ctx.Done():
+				err := queue.Close()
+				if err != nil {
+					Info(context.Background(), "Close failed", String("error", err.Error()))
+				}
+				Info(context.Background(), "context done return")
+				return
 			// 当connection关闭时，deliveries也会关闭；
 			case delivery, ok := <-deliveries:
 				if ok {
-					deal(delivery)
+					Info(context.Background(), "Received message", String("id", delivery.MessageId), String("message", string(delivery.Body)))
+					deal(ctx, delivery)
 					if err := delivery.Ack(false); err != nil {
-						log.Printf("Error acknowledging message: %s\n", err)
+						Info(context.Background(), "Error acknowledging message", String("error", err.Error()))
 					}
 				} else {
-					log.Printf("channel closed,go reto reconnect\n")
+					Info(context.Background(), "channel closed, go reto reconnect")
 					continue reconnect
 				}
 			}
 		}
 	}
-
 }
 
 // Consume will continuously put queue items on the channel.

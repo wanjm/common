@@ -26,9 +26,9 @@ func InitLogger() {
 func Info(context context.Context, msg string, fields ...zap.Field) {
 	// 程序启动过程中，如gorm链接数据库失败，此时没有trace_id；
 	// 其他情况下，如gorm可能忘记了withContext，也会出现没有trace_id的情况，但这是不可以接受的，应该修复，此处这么写，只是为了不影响程序运行
-	var trace_id = context.Value(TraceId{})
+	var trace_id = context.Value(TraceIdNameInContext)
 	if trace_id != nil {
-		fields = append(fields, String(TRACEID, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
+		fields = append(fields, String(TraceId, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
 	}
 	selfLogger.Info(msg, fields...)
 }
@@ -36,9 +36,9 @@ func Info(context context.Context, msg string, fields ...zap.Field) {
 func Warn(context context.Context, msg string, fields ...zap.Field) {
 	// 程序启动过程中，如gorm链接数据库失败，此时没有trace_id；
 	// 其他情况下，如gorm可能忘记了withContext，也会出现没有trace_id的情况，但这是不可以接受的，应该修复，此处这么写，只是为了不影响程序运行
-	var trace_id = context.Value(TraceId{})
+	var trace_id = context.Value(TraceIdNameInContext)
 	if trace_id != nil {
-		fields = append(fields, String(TRACEID, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
+		fields = append(fields, String(TraceId, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
 	}
 	selfLogger.Warn(msg, fields...)
 }
@@ -46,9 +46,9 @@ func Warn(context context.Context, msg string, fields ...zap.Field) {
 func Error(context context.Context, msg string, fields ...zap.Field) {
 	// 程序启动过程中，如gorm链接数据库失败，此时没有trace_id；
 	// 其他情况下，如gorm可能忘记了withContext，也会出现没有trace_id的情况，但这是不可以接受的，应该修复，此处这么写，只是为了不影响程序运行
-	var trace_id = context.Value(TraceId{})
+	var trace_id = context.Value(TraceIdNameInContext)
 	if trace_id != nil {
-		fields = append(fields, String(TRACEID, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
+		fields = append(fields, String(TraceId, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
 	}
 	selfLogger.Error(msg, fields...)
 }
@@ -56,9 +56,9 @@ func Error(context context.Context, msg string, fields ...zap.Field) {
 func Debug(context context.Context, msg string, fields ...zap.Field) {
 	// 程序启动过程中，如gorm链接数据库失败，此时没有trace_id；
 	// 其他情况下，如gorm可能忘记了withContext，也会出现没有trace_id的情况，但这是不可以接受的，应该修复，此处这么写，只是为了不影响程序运行
-	var trace_id = context.Value(TraceId{})
+	var trace_id = context.Value(TraceIdNameInContext)
 	if trace_id != nil {
-		fields = append(fields, String(TRACEID, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
+		fields = append(fields, String(TraceId, trace_id.(string)), String(HTTPURL, context.Value(HttpUrl{}).(string)))
 	}
 	selfLogger.Debug(msg, fields...)
 }
