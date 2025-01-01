@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"gitlab.plaso.cn/module-go/common"
+	"github.com/wanjm/common"
 )
 
 func a(a common.SqlQueryOptions) {

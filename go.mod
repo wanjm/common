@@ -1,4 +1,4 @@
-module gitlab.plaso.cn/module-go/common
+module github.com/wanjm/common
 
 go 1.22.5
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-	"gitlab.plaso.cn/module-go/common"
+	"github.com/wanjm/common"
 )
 
 func main() {
