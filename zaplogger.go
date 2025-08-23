@@ -30,6 +30,7 @@ func InitLogger() *zap.Logger {
 	if err != nil {
 		fmt.Printf("init logger failed: %v\n", err)
 	}
+	zap.ReplaceGlobals(selfLogger)
 	return selfLogger
 }
 func addCommonFields(context context.Context, fields []LogField) []LogField {
