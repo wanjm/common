@@ -8,6 +8,7 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/rs/xid"
 )
 
 // RabbitMqClient is the base struct for handling connection recovery, consumption and
@@ -247,30 +248,33 @@ reconnect:
 	for {
 		deliveries, err := queue.consume(customTag)
 		if err != nil {
-			Info(context.Background(), "Could not start consuming", String("error", err.Error()))
+			Info(ctx, "Could not start consuming in rabbitmq", String("error", err.Error()))
 			<-time.After(time.Second * 2)
 			continue
 		}
-		Info(context.Background(), "Start consuming", String("queue", queue.queueName))
+		Info(ctx, "Start consuming", String("queue", queue.queueName))
 		for {
 			select {
 			case <-ctx.Done():
 				err := queue.Close()
 				if err != nil {
-					Info(context.Background(), "Close failed", String("error", err.Error()))
+					Info(ctx, "Close failed", String("error", err.Error()))
 				}
-				Info(context.Background(), "context done return")
+				Info(ctx, "context done return")
 				return
 			// 当connection关闭时，deliveries也会关闭；
 			case delivery, ok := <-deliveries:
 				if ok {
-					Info(context.Background(), "Received message", String("id", delivery.MessageId), String("message", string(delivery.Body)))
-					deal(ctx, delivery)
+					nc := context.WithValue(ctx, TraceIdNameInContext, xid.New().String())
+					Info(nc, "Received mq message", String("id", delivery.MessageId), String("message", string(delivery.Body)))
+					start := time.Now()
+					deal(nc, delivery)
 					if err := delivery.Ack(false); err != nil {
-						Info(context.Background(), "Error acknowledging message", String("error", err.Error()))
+						Info(nc, "Error acknowledging message", String("error", err.Error()))
 					}
+					Info(nc, "deal mq message finished", Int("duraton", int(time.Since(start).Milliseconds())))
 				} else {
-					Info(context.Background(), "channel closed, go reto reconnect")
+					Info(ctx, "channel closed, go reto reconnect")
 					continue reconnect
 				}
 			}

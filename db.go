@@ -6,18 +6,22 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 	"gorm.io/plugin/dbresolver"
 )
 
 type MySqlConfig struct {
-	Debug        bool
-	DSN          string   //主库
-	Replicas     []string //从库
-	MaxLifetime  int
-	MaxIdleTime  int
-	MaxOpenConns int
-	MaxIdleConns int
-	TablePrefix  string
+	Debug         bool
+	DSN           string   //主库
+	Replicas      []string //从库
+	MaxLifetime   int
+	MaxIdleTime   int
+	MaxOpenConns  int
+	MaxIdleConns  int
+	TablePrefix   string
+	SingularTable bool
+	SlowThreshold int // milliseconds
+
 	// Resolver     []ResolverConfig
 }
 
@@ -30,8 +34,13 @@ func ConnectGorm(cfg *MySqlConfig) (gormdb *gorm.DB) {
 	}
 	gormdb, err := gorm.Open(mysql.Open(cfg.DSN), &gorm.Config{
 		Logger: NewGormLogger(logger.Config{
-			LogLevel: level,
+			LogLevel:      level,
+			SlowThreshold: time.Duration(cfg.SlowThreshold) * time.Millisecond,
 		}),
+		NamingStrategy: schema.NamingStrategy{
+			TablePrefix:   cfg.TablePrefix,
+			SingularTable: cfg.SingularTable,
+		},
 	})
 	if err != nil {
 		panic(err)

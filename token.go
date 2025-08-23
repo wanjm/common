@@ -3,17 +3,17 @@ package common
 import "context"
 
 type TokenUser struct {
-	UserName     string `json:"userName"`
-	UserType     int    `json:"userType"`
-	Mobile       string `json:"mobile"`
-	MCode        string `json:"mCode"`
-	Platform     string `json:"platform"`
-	Option       int    `json:"option"`
-	Token        string `json:"token"`
-	Location     string `json:"location"`
-	LastLogin    string `json:"lastLogin"`
-	UserId       int    `json:"userId"`
-	Username     string `json:"username"`
+	LoginName string `json:"userName"`
+	UserType  int    `json:"userType"`
+	Mobile    string `json:"mobile"`
+	MCode     string `json:"mCode"`
+	Platform  string `json:"platform"`
+	Option    int    `json:"option"`
+	Token     string `json:"token"`
+	Location  string `json:"location"`
+	LastLogin string `json:"lastLogin"`
+	UserId    int    `json:"userId"`
+	//Username     string `json:"username"` 同loginName
 	UserRealName string `json:"userRealName"`
 	UserProfile  string `json:"userProfile"`
 	UserOrgName  string `json:"userOrgName"`

@@ -12,8 +12,8 @@ func a(a common.SqlQueryOptions) {
 }
 func escape() {
 	a(common.SqlQueryOptions{
-		QueryFields: []*common.Where{
-			{Query: "id=?", Args: []interface{}{1}},
+		QueryFields: []common.Option{
+			common.W("id=?", 1),
 		},
 	})
 }

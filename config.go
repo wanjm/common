@@ -33,6 +33,7 @@ func LoadConfig(config any, configdir, app string) {
 	LoadConfigFile(config, path.Join(configdir, "business.private.toml"))
 }
 func LoadConfigFile(config any, file string) bool {
+	fmt.Printf("load config file %s\n", file)
 	buf, err := os.ReadFile(file)
 	if err == nil {
 		_, err = toml.Decode(string(buf), config)
@@ -40,6 +41,8 @@ func LoadConfigFile(config any, file string) bool {
 			panic(err)
 		}
 		return true
+	} else {
+		fmt.Printf("failed to read %s reason: %s\n", file, err.Error())
 	}
 	return false
 }
