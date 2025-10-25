@@ -11,7 +11,7 @@ import (
 
 var selfLogger *slog.Logger
 
-type LogField = slog.Attr
+type LogField = any
 
 func InitLogger() *slog.Logger {
 	if selfLogger == nil {
