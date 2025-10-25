@@ -31,5 +31,8 @@ type TokenUser struct {
 type TokenKey struct{}
 
 func GetToken(c context.Context) *TokenUser {
-	return c.Value(TokenKey{}).(*TokenUser)
+	if t, ok := c.Value(TokenKey{}).(*TokenUser); ok {
+		return t
+	}
+	return nil
 }

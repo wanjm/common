@@ -34,8 +34,9 @@ func ConnectGorm(cfg *MySqlConfig) (gormdb *gorm.DB) {
 	}
 	gormdb, err := gorm.Open(mysql.Open(cfg.DSN), &gorm.Config{
 		Logger: NewGormLogger(logger.Config{
-			LogLevel:      level,
-			SlowThreshold: time.Duration(cfg.SlowThreshold) * time.Millisecond,
+			LogLevel:                  level,
+			SlowThreshold:             time.Duration(cfg.SlowThreshold) * time.Millisecond,
+			IgnoreRecordNotFoundError: true,
 		}),
 		NamingStrategy: schema.NamingStrategy{
 			TablePrefix:   cfg.TablePrefix,

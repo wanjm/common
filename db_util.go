@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -35,32 +34,32 @@ type QueryOptions struct {
 	Offset       int
 }
 
-type mysqlOption struct {
+type MysqlOption struct {
 	Query string //缩小范围，仅支持字符串
 	Args  []any
 }
 
-func (o *mysqlOption) GenMysqlWhere(db *gorm.DB) {
+func (o *MysqlOption) GenMysqlWhere(db *gorm.DB) {
 	db.Where(o.Query, o.Args...)
 }
-func (o *mysqlOption) GenMongoOption(m bson.M) {
+func (o *MysqlOption) GenMongoOption(m bson.M) {
 	// m[o.Query] = o.Args[0]
 }
 
 type Option = Optioner
 
-func O(query string, args ...any) *mysqlOption {
-	return &mysqlOption{Query: query, Args: args}
+func O(query string, args ...any) *MysqlOption {
+	return &MysqlOption{Query: query, Args: args}
 }
-func W(query string, args ...any) *mysqlOption {
-	return &mysqlOption{Query: query, Args: args}
+func W(query string, args ...any) *MysqlOption {
+	return &MysqlOption{Query: query, Args: args}
 }
 
 type SqlQueryOptions struct {
 	QueryFields  []Optioner
 	SelectFields []string
 	// OmitFields   []string
-	Joins       []*mysqlOption
+	Joins       []*MysqlOption
 	GroupBy     []string
 	OrderFields OrderByParams
 	Limit       int
@@ -181,6 +180,7 @@ type TypeOption struct {
 type EqOption TypeOption
 type NeOption TypeOption
 type InOption TypeOption
+type NotInOption TypeOption
 type GtOption TypeOption
 type GteOption TypeOption
 type LtOption TypeOption
@@ -192,6 +192,26 @@ type ExistOption TypeOption
 // LikeOption 表示模糊匹配操作符，用于SQL的LIKE查询和MongoDB的正则查询
 type LikeOption TypeOption
 
+func IdsOption(ids any) []Optioner {
+	return []Optioner{In("id", ids)}
+}
+func IdOption(id any) []Optioner {
+	return []Optioner{Eq("id", id)}
+}
+func OptIn(field string, values any) []Optioner {
+	return []Optioner{In(field, values)}
+}
+func OptEq(field string, value any) []Optioner {
+	return []Optioner{Eq(field, value)}
+}
+func OptNe(field string, value any) []Optioner {
+	return []Optioner{Ne(field, value)}
+}
+
+func OptNotIn(field string, values any) []Optioner {
+	return []Optioner{NotIn(field, values)}
+}
+
 func Eq(field string, value any) EqOption {
 	return EqOption{Query: field, Args: value}
 }
@@ -202,6 +222,10 @@ func Ne(field string, value any) NeOption {
 
 func In(field string, value any) InOption {
 	return InOption{Query: field, Args: value}
+}
+
+func NotIn(field string, value any) NotInOption {
+	return NotInOption{Query: field, Args: value}
 }
 
 func Gt(field string, value any) GtOption {
@@ -230,7 +254,7 @@ func Exist(field string, exists bool) ExistOption {
 // Like 创建一个模糊匹配条件
 // field: 字段名
 // value: 匹配值（应包含适当的通配符，如%或_）
-func Like(field string, value any) LikeOption {
+func Like(field string, value string) LikeOption {
 	return LikeOption{Query: field, Args: value}
 }
 
@@ -255,6 +279,11 @@ func (o NeOption) GenMongoOption(m bson.M) {
 // GenMongoOption 实现MongoOptioner接口，将InOption转换为MongoDB的in查询
 func (o InOption) GenMongoOption(m bson.M) {
 	m[o.Query] = bson.M{"$in": o.Args}
+}
+
+// GenMongoOption 实现MongoOptioner接口，将NotInOption转换为MongoDB的nin查询
+func (o NotInOption) GenMongoOption(m bson.M) {
+	m[o.Query] = bson.M{"$nin": o.Args}
 }
 
 // GenMongoOption 实现MongoOptioner接口，将GtOption转换为MongoDB的大于查询
@@ -284,25 +313,7 @@ func (o ExistOption) GenMongoOption(m bson.M) {
 
 // GenMongoOption 实现MongoOptioner接口，将LikeOption转换为MongoDB的正则查询
 func (o LikeOption) GenMongoOption(m bson.M) {
-	// 在MongoDB中使用正则表达式实现LIKE功能
-	// 自动添加前后通配符
-	if pattern, ok := o.Args.(string); ok {
-		// 自动添加前后通配符，除非已经包含
-		regexPattern := pattern
-		if !strings.HasPrefix(pattern, ".*") && !strings.HasPrefix(pattern, "%") {
-			regexPattern = ".*" + regexPattern
-		}
-		if !strings.HasSuffix(pattern, ".*") && !strings.HasSuffix(pattern, "%") {
-			regexPattern = regexPattern + ".*"
-		}
-		// 将SQL LIKE通配符转换为JavaScript正则表达式格式
-		regexPattern = bsonRegexEscapeForLike(regexPattern)
-		m[o.Query] = bson.M{"$regex": regexPattern, "$options": "i"}
-	} else {
-		// 如果不是字符串，直接使用原始值并添加通配符
-		regexPattern := fmt.Sprintf(".*%v.*", o.Args)
-		m[o.Query] = bson.M{"$regex": regexPattern, "$options": "i"}
-	}
+	m[o.Query] = bson.M{"$regex": o.Args.(string), "$options": "i"}
 }
 
 // bsonRegexEscapeForLike 转义MongoDB正则表达式中的特殊字符并将SQL通配符转换为正则表达式
@@ -391,6 +402,11 @@ func (o InOption) GenMysqlWhere(db *gorm.DB) {
 	db.Where(o.Query+" IN (?)", o.Args)
 }
 
+// GenMysqlWhere 实现MysqlOptioner接口，将NotInOption转换为MySQL的NOT IN查询
+func (o NotInOption) GenMysqlWhere(db *gorm.DB) {
+	db.Where(o.Query+" NOT IN (?)", o.Args)
+}
+
 // GenMysqlWhere 实现MysqlOptioner接口，将GtOption转换为MySQL的大于查询
 func (o GtOption) GenMysqlWhere(db *gorm.DB) {
 	db.Where(o.Query+" > ?", o.Args)
@@ -422,19 +438,7 @@ func (o ExistOption) GenMysqlWhere(db *gorm.DB) {
 
 // GenMysqlWhere 实现MysqlOptioner接口，将LikeOption转换为MySQL的LIKE查询
 func (o LikeOption) GenMysqlWhere(db *gorm.DB) {
-	// 自动添加前后%通配符
-	if pattern, ok := o.Args.(string); ok {
-		// 如果用户没有自己添加通配符，则自动添加前后%
-		if !strings.ContainsAny(pattern, "%_") {
-			db.Where(o.Query+" LIKE ?", "%"+pattern+"%")
-		} else {
-			// 如果用户已经添加了通配符，则按用户指定的执行
-			db.Where(o.Query+" LIKE ?", pattern)
-		}
-	} else {
-		// 如果不是字符串，直接添加前后通配符
-		db.Where(o.Query+" LIKE ?", fmt.Sprintf("%%%v%%", o.Args))
-	}
+	db.Where(o.Query+" LIKE ?", "%"+o.Args.(string)+"%")
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将OrOption转换为MySQL的OR查询

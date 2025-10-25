@@ -1,0 +1,34 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+*.DS_Store
+/ai-convert
+/ai-convert.lock
+/release
+/data
+/internal/test/data
+tmp
+/vendor
+/configs/gen_rbac_policy.csv
+/configs/gen_rbac_policy.csv.bak
+/configs/rbac_policy.csv.bak
+/test/data
+/internal/swagger/v3/.openapi-generator
+/internal/swagger/v3/.openapi-generator-ignore
+/internal/mods/task/test/caption.*
+
+# IDE configs
+.idea
+.vscode
+business.private.toml
