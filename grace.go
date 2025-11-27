@@ -35,10 +35,11 @@ func (m *gracefulManager) Go(jobName string, fn func(ctx context.Context)) {
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done() // 协程退出时取消注册
-		defer Recover(m.ctx, jobName)
-		Info(m.ctx, "Job started", String("jobName", jobName))
-		fn(m.ctx) // 将带有信号监听的 ctx 传递给业务逻辑
-		Info(m.ctx, "Job finished", String("jobName", jobName))
+		ctx := context.WithValue(m.ctx, TraceIdNameInContext, jobName)
+		defer Recover(ctx, jobName)
+		Info(ctx, "Job started", String("jobName", jobName))
+		fn(ctx) // 将带有信号监听的 ctx 传递给业务逻辑
+		Info(ctx, "Job finished", String("jobName", jobName))
 	}()
 }
 
