@@ -50,23 +50,64 @@ func ConnectMongo(cfg *MongoConfig) *mongo.Client {
 
 }
 
-// func withMonitorOption() *event.CommandMonitor {
-// 	// log monitor
-// 	return &event.CommandMonitor{
-// 		Started: func(ctx context.Context, startedEvent *event.CommandStartedEvent) {
-// 			Info(ctx, fmt.Sprintf("Mongo %s Started", startedEvent.CommandName),
-// 				Int64("req_id", startedEvent.RequestID),
-// 				String("sql", startedEvent.Command.String()))
-// 		},
-// 		Succeeded: func(ctx context.Context, succeededEvent *event.CommandSucceededEvent) {
-// 			Info(ctx, fmt.Sprintf("[%dms] Mongo %s Succeeded", succeededEvent.Duration.Milliseconds(), succeededEvent.CommandName),
-// 				Int64("req_id", succeededEvent.RequestID),
-// 				String("duration", fmt.Sprintf("%d", succeededEvent.Duration.Milliseconds())))
-// 		},
-// 		Failed: func(ctx context.Context, failedEvent *event.CommandFailedEvent) {
-// 			Info(ctx, fmt.Sprintf("[%dms] Mongo %s Failed", failedEvent.Duration.Milliseconds(), failedEvent.CommandName),
-// 				Int64("req_id", failedEvent.RequestID),
-// 				String("duration", fmt.Sprintf("%d", failedEvent.Duration.Milliseconds())))
-// 		},
-// 	}
-// }
+//	func withMonitorOption() *event.CommandMonitor {
+//		// log monitor
+//		return &event.CommandMonitor{
+//			Started: func(ctx context.Context, startedEvent *event.CommandStartedEvent) {
+//				Info(ctx, fmt.Sprintf("Mongo %s Started", startedEvent.CommandName),
+//					Int64("req_id", startedEvent.RequestID),
+//					String("sql", startedEvent.Command.String()))
+//			},
+//			Succeeded: func(ctx context.Context, succeededEvent *event.CommandSucceededEvent) {
+//				Info(ctx, fmt.Sprintf("[%dms] Mongo %s Succeeded", succeededEvent.Duration.Milliseconds(), succeededEvent.CommandName),
+//					Int64("req_id", succeededEvent.RequestID),
+//					String("duration", fmt.Sprintf("%d", succeededEvent.Duration.Milliseconds())))
+//			},
+//			Failed: func(ctx context.Context, failedEvent *event.CommandFailedEvent) {
+//				Info(ctx, fmt.Sprintf("[%dms] Mongo %s Failed", failedEvent.Duration.Milliseconds(), failedEvent.CommandName),
+//					Int64("req_id", failedEvent.RequestID),
+//					String("duration", fmt.Sprintf("%d", failedEvent.Duration.Milliseconds())))
+//			},
+//		}
+//	}
+type MongoMap map[string]any
+
+// SetValue adds a key-value pair to the "$set" subdocument in the map.
+func (m MongoMap) SetValue(key string, value any) {
+	set, ok := m["$set"].(map[string]any)
+	if !ok {
+		set = make(map[string]any)
+		m["$set"] = set
+	}
+	set[key] = value
+}
+
+// Set sets the entire "$set" subdocument to the provided map.
+// Replaces any existing "$set" contents.
+func (m MongoMap) Set(data map[string]any) {
+	m["$set"] = data
+}
+
+// SetBit adds a bitwise OR operation for the given field and value into the "$bit" subdocument.
+func (m MongoMap) SetBit(field string, value int) {
+	bit, ok := m["$bit"].(map[string]any)
+	if !ok {
+		bit = make(map[string]any)
+		m["$bit"] = bit
+	}
+	bit[field] = map[string]any{
+		"or": value,
+	}
+}
+
+// UsetBit is an alias for SetBit.
+func (m MongoMap) UnsetBit(field string, value int) {
+	bit, ok := m["$bit"].(map[string]any)
+	if !ok {
+		bit = make(map[string]any)
+		m["$bit"] = bit
+	}
+	bit[field] = map[string]any{
+		"and": ^value,
+	}
+}
