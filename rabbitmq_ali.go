@@ -25,6 +25,7 @@ type RabbitMqConfig struct {
 	ExchangeType    string
 	QueueName       string
 	RoutingKey      string
+	FanoutExchange  string
 }
 
 func (cfg *RabbitMqConfig) GetAddr() string {
@@ -60,4 +61,10 @@ func ConnectProducer(cfg *RabbitMqConfig) *RabbitMqClient {
 func ConnectConsumer(cfg *RabbitMqConfig) *RabbitMqClient {
 	queue := New("", cfg.QueueName, cfg.GetAddr())
 	return queue
+}
+
+func ConnectFanoutConsumer(cfg *RabbitMqConfig) *RabbitMqClient {
+	// 使用 NewWithExchangeType 明确指定 fanout 类型
+	mqClient := NewWithExchangeType(cfg.FanoutExchange, "", "fanout", cfg.GetAddr())
+	return mqClient
 }
