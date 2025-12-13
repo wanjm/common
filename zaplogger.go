@@ -44,6 +44,10 @@ func addCommonFields(context context.Context, fields []LogField) []LogField {
 	if url != nil {
 		fields = append(fields, String(HTTPURL, url.(string)))
 	}
+	var clientInfo = context.Value(ClientInfo{})
+	if clientInfo != nil {
+		fields = append(fields, String(CLIENTINFO, clientInfo.(string)))
+	}
 	return fields
 }
 func Info(context context.Context, msg string, fields ...LogField) {
@@ -88,6 +92,10 @@ func Int(key string, val int) LogField {
 }
 func Err(err error) LogField {
 	return zap.String("error", err.Error())
+}
+
+func Any(key string, val any) LogField {
+	return zap.Any(key, val)
 }
 
 func Float64(key string, val float64) LogField {

@@ -16,9 +16,10 @@ import (
 // data races. As you develop and iterate over this example, you may need to add
 // further locks, or safeguards, to keep your application safe from data races
 type RabbitMqClient struct {
-	m         *sync.Mutex
-	exchange  string
-	queueName string
+	m            *sync.Mutex
+	exchange     string
+	queueName    string
+	exchangeType string // 交换机类型："fanout", "direct", "topic" 等
 	// logger          *log.Logger
 	connection      *amqp.Connection
 	channel         *amqp.Channel
@@ -52,12 +53,19 @@ var (
 // 发送消息时，queueName为routingKey，或者exchange为空，queueName为queueName；
 // 接受消息时，queueName为queueName，exchange为空；
 func New(exchange, queueName, addr string) *RabbitMqClient {
+	return NewWithExchangeType(exchange, queueName, "", addr)
+}
+
+// NewWithExchangeType creates a new consumer state instance with exchange type.
+// exchangeType: "fanout", "direct", "topic" 等，用于声明交换机和判断消费模式
+func NewWithExchangeType(exchange, queueName, exchangeType, addr string) *RabbitMqClient {
 	client := RabbitMqClient{
 		m: &sync.Mutex{},
 		// logger:    log.New(os.Stdout, "", log.LstdFlags),
-		exchange:  exchange,
-		queueName: queueName,
-		done:      make(chan bool),
+		exchange:     exchange,
+		queueName:    queueName,
+		exchangeType: exchangeType,
+		done:         make(chan bool),
 	}
 	go client.handleReconnect(addr)
 	return &client
@@ -252,7 +260,16 @@ reconnect:
 			<-time.After(time.Second * 2)
 			continue
 		}
-		Info(ctx, "Start consuming", String("queue", queue.queueName))
+		// 获取实际使用的队列名（fanout 模式下已动态更新）
+		queue.m.Lock()
+		queueName := queue.queueName
+		exchangeType := queue.exchangeType
+		queue.m.Unlock()
+
+		Info(ctx, "Start consuming",
+			String("queue", queueName),
+			String("exchangeType", exchangeType),
+			String("exchange", queue.exchange))
 		for {
 			select {
 			case <-ctx.Done():
@@ -282,6 +299,39 @@ reconnect:
 	}
 }
 
+// isFanoutMode 判断是否为 fanout 模式（从 exchangeType 推导，避免使用魔法字符串）
+func (client *RabbitMqClient) isFanoutMode() bool {
+	client.m.Lock()
+	defer client.m.Unlock()
+	return client.exchangeType == "fanout"
+}
+
+// ensureExchange 确保交换机存在（在 consume 时调用）
+func (client *RabbitMqClient) ensureExchange() error {
+	if client.exchange == "" {
+		return nil // 不需要交换机
+	}
+
+	client.m.Lock()
+	ch := client.channel
+	client.m.Unlock()
+
+	if ch == nil {
+		return errNotConnected
+	}
+
+	// 根据类型声明交换机
+	return ch.ExchangeDeclare(
+		client.exchange,
+		client.exchangeType,
+		true,  // durable - 持久化
+		false, // auto-deleted
+		false, // internal
+		false, // no-wait
+		nil,   // arguments
+	)
+}
+
 // Consume will continuously put queue items on the channel.
 // It is required to call delivery.Ack when it has been
 // successfully processed, or delivery.Nack when it fails.
@@ -292,9 +342,33 @@ func (client *RabbitMqClient) consume(customTag string) (<-chan amqp.Delivery, e
 		client.m.Unlock()
 		return nil, errNotConnected
 	}
+	ch := client.channel
 	client.m.Unlock()
 
-	if err := client.channel.Qos(
+	if ch == nil {
+		return nil, errNotConnected
+	}
+
+	// 如果是 fanout 模式，需要特殊处理
+	if client.isFanoutMode() {
+		// 1. 确保交换机存在
+		if err := client.ensureExchange(); err != nil {
+			return nil, fmt.Errorf("failed to ensure fanout exchange: %w", err)
+		}
+
+		// 2. 声明临时队列并绑定
+		queueName, err := client.fanoutQueueDeclare()
+		if err != nil {
+			return nil, fmt.Errorf("failed to declare fanout queue: %w", err)
+		}
+
+		// 3. 保存队列名（直接更新 queueName，复用字段避免重复）
+		client.m.Lock()
+		client.queueName = queueName
+		client.m.Unlock()
+	}
+
+	if err := ch.Qos(
 		1,
 		0,
 		false,
@@ -302,8 +376,12 @@ func (client *RabbitMqClient) consume(customTag string) (<-chan amqp.Delivery, e
 		return nil, err
 	}
 
-	return client.channel.Consume(
-		client.queueName,
+	client.m.Lock()
+	queueName := client.queueName
+	client.m.Unlock()
+
+	return ch.Consume(
+		queueName,
 		customTag,
 		false,
 		false,
@@ -334,4 +412,40 @@ func (client *RabbitMqClient) Close() error {
 
 	client.isReady = false
 	return nil
+}
+
+func (client *RabbitMqClient) fanoutQueueDeclare() (string, error) {
+	client.m.Lock()
+	ch := client.channel
+	client.m.Unlock()
+
+	if ch == nil {
+		return "", errNotConnected
+	}
+
+	// 声明临时队列
+	queue, err := ch.QueueDeclare(
+		"",    // 自动生成队列名
+		false, // 非持久化
+		true,  // 自动删除
+		true,  // 排他性
+		false, // 非阻塞
+		nil,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to declare queue: %w", err)
+	}
+
+	// 绑定队列到广播交换机
+	if err := ch.QueueBind(
+		queue.Name,      // 队列名
+		"",              // fanout类型不需要路由键
+		client.exchange, // 交换机名
+		false,
+		nil,
+	); err != nil {
+		return "", fmt.Errorf("failed to bind queue to exchange: %w", err)
+	}
+
+	return queue.Name, nil
 }
