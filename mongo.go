@@ -70,13 +70,20 @@ func ConnectMongo(cfg *MongoConfig) *mongo.Client {
 //			},
 //		}
 //	}
+//
+// 定一个两个类型的原因是防止交叉使用，便于语法检查
 type MongoMap map[string]any
+type MongoSetMap map[string]any
+
+func (m MongoMap) IsEmpty() bool {
+	return len(m) == 0
+}
 
 // SetValue adds a key-value pair to the "$set" subdocument in the map.
 func (m MongoMap) SetValue(key string, value any) {
-	set, ok := m["$set"].(map[string]any)
+	set, ok := m["$set"].(MongoSetMap)
 	if !ok {
-		set = make(map[string]any)
+		set = make(MongoSetMap)
 		m["$set"] = set
 	}
 	set[key] = value
@@ -84,7 +91,7 @@ func (m MongoMap) SetValue(key string, value any) {
 
 // Set sets the entire "$set" subdocument to the provided map.
 // Replaces any existing "$set" contents.
-func (m MongoMap) Set(data map[string]any) {
+func (m MongoMap) Set(data MongoSetMap) {
 	m["$set"] = data
 }
 

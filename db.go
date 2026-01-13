@@ -1,6 +1,7 @@
 package common
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -59,4 +60,44 @@ func ConnectGorm(cfg *MySqlConfig) (gormdb *gorm.DB) {
 		SetMaxOpenConns(cfg.MaxOpenConns),
 	)
 	return gormdb
+}
+
+// 这两个函数会被编译器内连，如果传入是const，会直接替换为字符串；
+// 不影响性能；
+func C2(a, b string) string {
+	return a + "." + b
+}
+
+// 这三个函数会被编译器内连，如果传入是const，会直接替换为字符串；
+// 不影响性能；
+func C3(a, b, c string) string {
+	return a + "." + b + "." + c
+}
+func C4(a, b, c, d string) string {
+	return a + "." + b + "." + c + "." + d
+}
+
+// 这个函数会被编译器内连，如果传入是const, 也不会优化，所以尽量不要使用；
+func Cn(a ...string) string {
+	return strings.Join(a, ".")
+}
+
+// return max(xx)
+func CMax(a string) string {
+	return "max(" + a + ")"
+}
+
+// return min(xx)
+func CMin(a string) string {
+	return "min(" + a + ")"
+}
+
+// return sum(xx)
+func CSum(a string) string {
+	return "sum(" + a + ")"
+}
+
+// return avg(xx)
+func CAvg(a string) string {
+	return "avg(" + a + ")"
 }
