@@ -71,6 +71,11 @@ func ConnectMongo(cfg *MongoConfig) *mongo.Client {
 //		}
 //	}
 type MongoMap map[string]any
+type MongoSetMap map[string]any
+
+func (m MongoMap) IsEmpty() bool {
+	return len(m) == 0
+}
 
 // SetValue adds a key-value pair to the "$set" subdocument in the map.
 func (m MongoMap) SetValue(key string, value any) {
