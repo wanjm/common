@@ -35,6 +35,10 @@ func addCommonFields(context context.Context, fields []any) []any {
 	if clientInfo != nil {
 		fields = append(fields, String(CLIENTINFO, clientInfo.(string)))
 	}
+	var sid = context.Value(SidNameInContext)
+	if sid != nil {
+		fields = append(fields, String(SID, sid.(string)))
+	}
 	return fields
 }
 func Info(context context.Context, msg string, fields ...any) {
