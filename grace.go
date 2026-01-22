@@ -2,7 +2,9 @@ package common
 
 import (
 	"context"
+	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -12,9 +14,10 @@ import (
 // ==========================================
 
 type gracefulManager struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+	activeJobs sync.Map // map[string]bool - track active job names
 }
 
 // NewGracefulManager 创建管理器，监听 SIGINT (Ctrl+C) 和 SIGTERM
@@ -33,8 +36,12 @@ func NewGracefulManager() *gracefulManager {
 // 自动注册 (Add) 和 解注册 (Done)
 func (m *gracefulManager) Go(jobName string, fn func(ctx context.Context)) {
 	m.wg.Add(1)
+	m.activeJobs.Store(jobName, true) // Track job as active
 	go func() {
-		defer m.wg.Done() // 协程退出时取消注册
+		defer func() {
+			m.activeJobs.Delete(jobName) // Remove from tracking when job finishes
+			m.wg.Done()                  // 协程退出时取消注册
+		}()
 		ctx := context.WithValue(m.ctx, TraceIdNameInContext, jobName)
 		defer Recover(ctx, jobName)
 		Info(ctx, "Job started", String("jobName", jobName))
@@ -48,6 +55,32 @@ func (m *gracefulManager) Wait() {
 	// 等待信号发生（用户按 Ctrl+C）
 	<-m.ctx.Done()
 	Info(m.ctx, "Received exit signal, waiting for all jobs to finish...")
+
+	// 设置第二个信号处理器，用于在第二次 Ctrl+C 时打印等待中的任务
+	secondSignalChan := make(chan os.Signal, 1)
+	signal.Notify(secondSignalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-secondSignalChan
+		// 收集所有等待中的任务名称
+		var waitingJobs []string
+		m.activeJobs.Range(func(key, value interface{}) bool {
+			if jobName, ok := key.(string); ok {
+				waitingJobs = append(waitingJobs, jobName)
+			}
+			return true
+		})
+
+		if len(waitingJobs) > 0 {
+			Warn(m.ctx, "Force kill requested, jobs still waiting",
+				String("waitingJobs", strings.Join(waitingJobs, ", ")),
+				Int("count", len(waitingJobs)))
+		} else {
+			Info(m.ctx, "Force kill requested, no jobs waiting")
+		}
+
+		os.Exit(1)
+	}()
 
 	// 恢复默认信号处理（如果用户再次按 Ctrl+C，立即强杀）
 	m.cancel()
