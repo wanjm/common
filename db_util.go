@@ -190,7 +190,10 @@ type LteOption TypeOption
 type ExistOption TypeOption
 
 // LikeOption 表示模糊匹配操作符，用于SQL的LIKE查询和MongoDB的正则查询
-type LikeOption TypeOption
+type LikeOption struct {
+	Fields []string
+	Arg    string
+}
 
 func IdsOption(ids any) []Optioner {
 	return []Optioner{In("id", ids)}
@@ -252,10 +255,10 @@ func Exist(field string, exists bool) ExistOption {
 }
 
 // Like 创建一个模糊匹配条件
-// field: 字段名
-// value: 匹配值（应包含适当的通配符，如%或_）
-func Like(field string, value string) LikeOption {
-	return LikeOption{Query: field, Args: value}
+// fields: 字段名列表，支持多个字段进行OR查询
+// value: 匹配值（应包含适当的通配符，如%或_，由调用者控制）
+func Like(fields []string, value string) LikeOption {
+	return LikeOption{Fields: fields, Arg: value}
 }
 
 type MongoOptioner interface {
@@ -313,7 +316,23 @@ func (o ExistOption) GenMongoOption(m bson.M) {
 
 // GenMongoOption 实现MongoOptioner接口，将LikeOption转换为MongoDB的正则查询
 func (o LikeOption) GenMongoOption(m bson.M) {
-	m[o.Query] = bson.M{"$regex": o.Args.(string), "$options": "i"}
+	if len(o.Fields) == 0 {
+		return
+	}
+	regex := bson.M{"$regex": o.Arg, "$options": "i"}
+	if len(o.Fields) == 1 {
+		// Single field: direct regex query
+		m[o.Fields[0]] = regex
+	} else {
+		// Multiple fields: use $or
+		conditions := []bson.M{}
+		for _, field := range o.Fields {
+			conditions = append(conditions, bson.M{
+				field: regex,
+			})
+		}
+		m["$or"] = conditions
+	}
 }
 
 // bsonRegexEscapeForLike 转义MongoDB正则表达式中的特殊字符并将SQL通配符转换为正则表达式
@@ -438,7 +457,25 @@ func (o ExistOption) GenMysqlWhere(db *gorm.DB) {
 
 // GenMysqlWhere 实现MysqlOptioner接口，将LikeOption转换为MySQL的LIKE查询
 func (o LikeOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" LIKE ?", "%"+o.Args.(string)+"%")
+	if len(o.Fields) == 0 {
+		return
+	}
+	if len(o.Fields) == 1 {
+		db.Where(o.Fields[0]+" LIKE ?", o.Arg)
+	} else {
+		// Multiple fields: generate OR condition
+		query := "("
+		args := make([]any, len(o.Fields))
+		for i, field := range o.Fields {
+			if i > 0 {
+				query += " OR "
+			}
+			query += field + " LIKE ?"
+			args[i] = o.Arg
+		}
+		query += ")"
+		db.Where(query, args...)
+	}
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将OrOption转换为MySQL的OR查询
