@@ -533,7 +533,7 @@ func (op *MongoQueryOperation) Count() (total int64, err error) {
 }
 
 func (op *MongoQueryOperation) Query(result any) (err error) {
-	cur, err := op.Collection.Find(op.Context, op.filter)
+	cur, err := op.Collection.Find(op.Context, op.filter, op.findOptions)
 	if err != nil {
 		return err
 	}
