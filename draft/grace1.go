@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.plaso.cn/module-go/common"
+	"github.com/wanjm/common"
 )
 
 // ==========================================
