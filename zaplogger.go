@@ -26,10 +26,14 @@ func InitLogger() *zap.Logger {
 	}
 	var err error
 	// selfLogger, err = zap.NewProduction()
-	selfLogger, err = zconfig.Build()
+	logger, err := zconfig.Build()
 	if err != nil {
 		fmt.Printf("init logger failed: %v\n", err)
 	}
+	selfLogger = logger.WithOptions(
+		zap.AddCaller(),
+		zap.AddCallerSkip(1),
+	)
 	zap.ReplaceGlobals(selfLogger)
 	return selfLogger
 }
