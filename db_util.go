@@ -83,8 +83,10 @@ type MongoQueryOptions struct {
 
 type DbOperation struct {
 	TableName string
-	Db        *gorm.DB
-	Context   context.Context
+	// Module, when non-nil, is passed to GORM Model() for QueryCV/Query instead of Table(TableName).
+	Module  any
+	Db      *gorm.DB
+	Context context.Context
 }
 
 // 带条件查询，
@@ -101,7 +103,13 @@ func (op *DbOperation) Query(option *SqlQueryOptions, result any) (err error) {
 // 2. total是查询结果的总数；
 // 3. result是查询结果的存放地；
 func (op *DbOperation) QueryCV(option *SqlQueryOptions, total *int64, result any) (err error) {
-	tbOrg := op.Db.WithContext(op.Context).Table(op.TableName)
+	db := op.Db.WithContext(op.Context)
+	var tbOrg *gorm.DB
+	if op.Module != nil {
+		tbOrg = db.Model(op.Module)
+	} else {
+		tbOrg = db.Table(op.TableName)
+	}
 	GenMysqlWhere(tbOrg, option.QueryFields)
 	// for _, where := range option.QueryFields {
 	// 	tbOrg.Where(where.Query, where.Args...)
