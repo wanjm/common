@@ -89,6 +89,14 @@ type DbOperation struct {
 	Context context.Context
 }
 
+func (op *DbOperation) gormForTable() *gorm.DB {
+	db := op.Db.WithContext(op.Context)
+	if op.Module != nil {
+		return db.Model(op.Module)
+	}
+	return db.Table(op.TableName)
+}
+
 // 带条件查询，
 //
 // 1. option是查询条件；
@@ -103,13 +111,7 @@ func (op *DbOperation) Query(option *SqlQueryOptions, result any) (err error) {
 // 2. total是查询结果的总数；
 // 3. result是查询结果的存放地；
 func (op *DbOperation) QueryCV(option *SqlQueryOptions, total *int64, result any) (err error) {
-	db := op.Db.WithContext(op.Context)
-	var tbOrg *gorm.DB
-	if op.Module != nil {
-		tbOrg = db.Model(op.Module)
-	} else {
-		tbOrg = db.Table(op.TableName)
-	}
+	tbOrg := op.gormForTable()
 	GenMysqlWhere(tbOrg, option.QueryFields)
 	// for _, where := range option.QueryFields {
 	// 	tbOrg.Where(where.Query, where.Args...)
@@ -155,14 +157,14 @@ func (op *DbOperation) QueryCV(option *SqlQueryOptions, total *int64, result any
 	return
 }
 func (op *DbOperation) Update(option *SqlUpdateOptions) (err error) {
-	tb := op.Db.WithContext(op.Context).Table(op.TableName)
+	tb := op.gormForTable()
 	GenMysqlWhere(tb, option.QueryFields)
 	tb.Updates(option.Updates)
 	return tb.Error
 }
 
 func (op *DbOperation) Delete(option []Optioner) (err error) {
-	tb := op.Db.WithContext(op.Context).Table(op.TableName)
+	tb := op.gormForTable()
 	GenMysqlWhere(tb, option)
 	tb.Delete(nil)
 	return tb.Error
@@ -170,7 +172,7 @@ func (op *DbOperation) Delete(option []Optioner) (err error) {
 
 // Create 新增
 func (op *DbOperation) Create(obj any) (err error) {
-	tb := op.Db.WithContext(op.Context).Table(op.TableName)
+	tb := op.gormForTable()
 	tb.Create(obj)
 	return tb.Error
 }
