@@ -95,6 +95,38 @@ func (m MongoMap) Set(data MongoSetMap) {
 	m["$set"] = data
 }
 
+// Push adds a key-value pair to the "$push" subdocument in the map.
+// value may be a scalar or bson.M{"$each": items} for multiple elements.
+func (m MongoMap) Push(key string, value any) {
+	push, ok := m["$push"].(map[string]any)
+	if !ok {
+		push = make(map[string]any)
+		m["$push"] = push
+	}
+	push[key] = value
+}
+
+// PushEach appends multiple values to an array field via $push and $each.
+func (m MongoMap) PushEach(key string, items []any) {
+	m.Push(key, map[string]any{"$each": items})
+}
+
+// AddToSet adds a key-value pair to the "$addToSet" subdocument in the map.
+// value may be a scalar or bson.M{"$each": items} for multiple elements.
+func (m MongoMap) AddToSet(key string, value any) {
+	addToSet, ok := m["$addToSet"].(map[string]any)
+	if !ok {
+		addToSet = make(map[string]any)
+		m["$addToSet"] = addToSet
+	}
+	addToSet[key] = value
+}
+
+// AddToSetEach adds multiple unique values to an array field via $addToSet and $each.
+func (m MongoMap) AddToSetEach(key string, items []any) {
+	m.AddToSet(key, map[string]any{"$each": items})
+}
+
 // SetBit adds a bitwise OR operation for the given field and value into the "$bit" subdocument.
 func (m MongoMap) SetBit(field string, value int) {
 	bit, ok := m["$bit"].(map[string]any)
