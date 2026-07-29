@@ -20,12 +20,9 @@ type gracefulManager struct {
 	activeJobs sync.Map // map[string]bool - track active job names
 }
 
-// NewGracefulManager 创建管理器，监听 SIGINT (Ctrl+C) 和 SIGTERM
+// NewGracefulManager 创建管理器。信号在 Wait 时才注册，避免未调用 Wait 时吞掉 Ctrl+C。
 func NewGracefulManager() *gracefulManager {
-	// 核心点 1 & 2: 使用 Background 作为根，并监听系统信号
-	// NotifyContext 会在收到信号时自动 cancel ctx
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-
+	ctx, cancel := context.WithCancel(context.Background())
 	return &gracefulManager{
 		ctx:    ctx,
 		cancel: cancel,
@@ -45,24 +42,30 @@ func (m *gracefulManager) Go(jobName string, fn func(ctx context.Context)) {
 		ctx := context.WithValue(m.ctx, TraceIdNameInContext, jobName)
 		defer Recover(ctx, jobName)
 		Info(ctx, "Job started", String("jobName", jobName))
-		fn(ctx) // 将带有信号监听的 ctx 传递给业务逻辑
+		fn(ctx) // 将可被 Wait 取消的 ctx 传递给业务逻辑
 		Info(ctx, "Job finished", String("jobName", jobName))
 	}()
 }
 
-// Wait 核心点 4: 等待所有注册的协程退出
+// Wait 注册 SIGINT/SIGTERM，收到信号后 cancel 共享 ctx，并等待所有注册的协程退出
 func (m *gracefulManager) Wait() {
-	// 等待信号发生（用户按 Ctrl+C）
-	<-m.ctx.Done()
-	Info(m.ctx, "Received exit signal, waiting for all jobs to finish...")
+	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	select {
+	case <-sigCtx.Done():
+	case <-m.ctx.Done():
+	}
+	stop()
 
-	// 设置第二个信号处理器，用于在第二次 Ctrl+C 时打印等待中的任务
+	Info(m.ctx, "Received exit signal, waiting for all jobs to finish...")
+	m.cancel() // 通知 Go 启动的协程退出
+
+	// 第二次 Ctrl+C：打印仍在等待的任务并强杀
 	secondSignalChan := make(chan os.Signal, 1)
 	signal.Notify(secondSignalChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(secondSignalChan)
 
 	go func() {
 		<-secondSignalChan
-		// 收集所有等待中的任务名称
 		var waitingJobs []string
 		m.activeJobs.Range(func(key, value interface{}) bool {
 			if jobName, ok := key.(string); ok {
@@ -82,10 +85,6 @@ func (m *gracefulManager) Wait() {
 		os.Exit(1)
 	}()
 
-	// 恢复默认信号处理（如果用户再次按 Ctrl+C，立即强杀）
-	m.cancel()
-
-	// 等待所有 Add 的协程 Done
 	m.wg.Wait()
 	Info(m.ctx, "All jobs finished, program exiting safely...")
 }
