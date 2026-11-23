@@ -58,7 +58,7 @@ func (op *DbOperation) QueryCV(option *SqlQueryOptions, total *int64, result any
 		return nil
 	}
 	for _, group := range option.GroupBy {
-		tbOrg.Group(group)
+		tbOrg.Group(mysqlIdent(group))
 	}
 
 	tbOrg.Select(option.SelectFields)
@@ -70,10 +70,11 @@ func (op *DbOperation) QueryCV(option *SqlQueryOptions, total *int64, result any
 	}
 	if len(option.OrderFields) > 0 {
 		for _, order := range option.OrderFields {
+			field := mysqlIdent(order.Field)
 			if order.Direction == ASCStr {
-				tbOrg.Order(order.Field + " ASC")
+				tbOrg.Order(field + " ASC")
 			} else {
-				tbOrg.Order(order.Field + " DESC")
+				tbOrg.Order(field + " DESC")
 			}
 		}
 	}

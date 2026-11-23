@@ -290,52 +290,66 @@ type MysqlOptioner interface {
 	GenMysqlWhere(db *gorm.DB)
 }
 
+// mysqlIdent quotes a MySQL column name so a reserved word stays an identifier.
+// It wraps each dot-separated part in backticks and leaves an already quoted name unchanged.
+func mysqlIdent(field string) string {
+	if field == "" || strings.Contains(field, "`") {
+		return field
+	}
+	parts := strings.Split(field, ".")
+	for i, part := range parts {
+		parts[i] = "`" + part + "`"
+	}
+	return strings.Join(parts, ".")
+}
+
 // GenMysqlWhere 实现MysqlOptioner接口，将EqOption转换为MySQL的等于查询
 func (o EqOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" = ?", o.Args)
+	db.Where(mysqlIdent(o.Query)+" = ?", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将NeOption转换为MySQL的不等于查询
 func (o NeOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" <> ?", o.Args)
+	db.Where(mysqlIdent(o.Query)+" <> ?", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将InOption转换为MySQL的IN查询
 func (o InOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" IN (?)", o.Args)
+	db.Where(mysqlIdent(o.Query)+" IN (?)", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将NotInOption转换为MySQL的NOT IN查询
 func (o NotInOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" NOT IN (?)", o.Args)
+	db.Where(mysqlIdent(o.Query)+" NOT IN (?)", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将GtOption转换为MySQL的大于查询
 func (o GtOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" > ?", o.Args)
+	db.Where(mysqlIdent(o.Query)+" > ?", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将GteOption转换为MySQL的大于等于查询
 func (o GteOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" >= ?", o.Args)
+	db.Where(mysqlIdent(o.Query)+" >= ?", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将LtOption转换为MySQL的小于查询
 func (o LtOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" < ?", o.Args)
+	db.Where(mysqlIdent(o.Query)+" < ?", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将LteOption转换为MySQL的小于等于查询
 func (o LteOption) GenMysqlWhere(db *gorm.DB) {
-	db.Where(o.Query+" <= ?", o.Args)
+	db.Where(mysqlIdent(o.Query)+" <= ?", o.Args)
 }
 
 // GenMysqlWhere 实现MysqlOptioner接口，将ExistOption转换为MySQL的IS NULL/IS NOT NULL查询
 func (o ExistOption) GenMysqlWhere(db *gorm.DB) {
+	field := mysqlIdent(o.Query)
 	if o.Args.(bool) {
-		db.Where(o.Query + " IS NOT NULL")
+		db.Where(field + " IS NOT NULL")
 	} else {
-		db.Where(o.Query + " IS NULL")
+		db.Where(field + " IS NULL")
 	}
 }
 
@@ -345,7 +359,7 @@ func (o LikeOption) GenMysqlWhere(db *gorm.DB) {
 		return
 	}
 	if len(o.Fields) == 1 {
-		db.Where(o.Fields[0]+" LIKE ?", o.Arg)
+		db.Where(mysqlIdent(o.Fields[0])+" LIKE ?", o.Arg)
 	} else {
 		// Multiple fields: generate OR condition
 		query := "("
@@ -354,7 +368,7 @@ func (o LikeOption) GenMysqlWhere(db *gorm.DB) {
 			if i > 0 {
 				query += " OR "
 			}
-			query += field + " LIKE ?"
+			query += mysqlIdent(field) + " LIKE ?"
 			args[i] = o.Arg
 		}
 		query += ")"
